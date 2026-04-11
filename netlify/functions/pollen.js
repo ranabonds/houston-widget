@@ -1,5 +1,3 @@
-const fetch = require("node-fetch");
-
 exports.handler = async function () {
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -25,8 +23,7 @@ exports.handler = async function () {
       result[key] = match ? parseInt(match[1].replace(/,/g, ""), 10) : null;
     }
 
-    // If regex didn't catch anything, try Anthropic as fallback
-    const allNull = Object.values(result).every(v => v === null || typeof v === "string");
+    const allNull = ["tree","grass","weed","mold"].every(k => result[k] === null);
     if (allNull && process.env.ANTHROPIC_API_KEY) {
       const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

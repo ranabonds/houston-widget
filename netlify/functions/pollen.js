@@ -5,52 +5,49 @@ exports.handler = async function () {
   };
 
   try {
-    const resp = await fetch("https://www.houstontx.gov/health/Pollen/", {
+    const indexResp = await fetch("https://www.houstonhealth.org/services/pollen-mold", {
       headers: { "User-Agent": "Mozilla/5.0" },
     });
-    const html = await resp.text();
+    const indexHtml = await indexResp.text();
 
-    const patterns = {
-      tree:  /tree[^<]*<[^>]+>([0-9,]+)/i,
-      grass: /grass[^<]*<[^>]+>([0-9,]+)/i,
-      weed:  /weed[^<]*<[^>]+>([0-9,]+)/i,
-      mold:  /mold[^<]*<[^>]+>([0-9,]+)/i,
+    const linkMatch = indexHtml.match(/href="(\/services\/pollen-mold\/houston-pollen-mold-count-[^"]+)"/i);
+    if (!linkMatch) throw new Error("Could not find latest pollen report link");
+
+    const reportUrl = "https://www.houstonhealth.org" + linkMatch[1];
+    const reportResp = await fetch(reportUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    const html = await reportResp.text();
+
+    function extractCount(label) {
+      const regex = new RegExp(label + "\\s*POLLEN[\\s\\S]*?<strong>([\\d,]+)<\\/strong>", "i");
+      const match = html.match(regex);
+      return match ? parseInt(match[1].replace(/,/g, ""), 10) : null;
+    }
+
+    function extractMold() {
+      const regex = /MOLD\s*SPORES[\s\S]*?<strong>([\d,]+)<\/strong>/i;
+      const match = html.match(regex);
+      return match ? parseInt(match[1].replace(/,/g, ""), 10) : null;
+    }
+
+    const dateMatch = indexHtml.match(/houston-pollen-mold-count-([a-z]+-[a-z]+-\d+-\d+)/i);
+    const date = dateMatch ? dateMatch[1].replace(/-(\d+)$/, "-$1") : new Date().toISOString().split("T")[0];
+
+    const result = {
+      tree:  extractCount("TREE"),
+      grass: extractCount("GRASS"),
+      weed:  extractCount("WEED"),
+      mold:  extractMold(),
+      source_url: reportUrl,
+      date: date,
     };
-
-    const result = { date: new Date().toISOString().split("T")[0] };
-    for (const [key, pattern] of Object.entries(patterns)) {
-      const match = html.match(pattern);
-      result[key] = match ? parseInt(match[1].replace(/,/g, ""), 10) : null;
-    }
-
-    const allNull = ["tree","grass","weed","mold"].every(k => result[k] === null);
-    if (allNull && process.env.ANTHROPIC_API_KEY) {
-      const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "web-search-2025-03-05",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 500,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{
-            role: "user",
-            content: `Search houstontx.gov/health/Pollen/ for today's pollen counts. Return ONLY raw JSON, no markdown: {"tree":<number|null>,"grass":<number|null>,"weed":<number|null>,"mold":<number|null>,"date":"<date>"}`,
-          }],
-        }),
-      });
-      const aiData = await aiResp.json();
-      const raw = aiData.content.filter(b => b.type === "text").map(b => b.text).join("");
-      const match = raw.match(/\{[\s\S]*?\}/);
-      if (match) return { statusCode: 200, headers, body: match[0] };
-    }
 
     return { statusCode: 200, headers, body: JSON.stringify(result) };
   } catch (err) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
+};
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };

@@ -48,6 +48,3 @@ exports.handler = async function () {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
-  }
-};

@@ -6,7 +6,7 @@ exports.handler = async function () {
 
   try {
     const apiKey = process.env.AIRNOW_API_KEY;
-    const url = `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=77002&distance=25&API_KEY=${apiKey}`;
+    const url = `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=77573&distance=25&API_KEY=${apiKey}`;
 
     const resp = await fetch(url);
     if (!resp.ok) throw new Error("AirNow error: " + resp.status);
